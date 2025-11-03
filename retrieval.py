@@ -27,8 +27,4 @@ def multi_round_retrieve(query, num_rounds=2, top_k=8, api_key=None):
 
     return snippets[:top_k]
 
-if __name__ == "__main__":
-    claim = "Electric cars reduce carbon emissions compared to petrol cars"
-    snips = multi_round_retrieve(claim)
-    for s in snips:
-        print(s)
+# retrieval module - no top-level execution code

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Result — NarrativeGuard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/static/style.css" rel="stylesheet">
+</head>
+<body>
+  <div class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-md-10 fade-up">
+        <a href="/" class="btn btn-link mb-3">&larr; Back</a>
+
+        <div class="card mb-3 shadow-sm">
+          <div class="card-body">
+            <h2 class="d-flex justify-content-between align-items-center mb-3">
+              <span>Verdict</span>
+              {% if res.verdict.lower().startswith('likely true') or res.verdict.lower()=='true' %}
+                <span class="badge badge-success">{{ res.verdict }}</span>
+              {% elif res.verdict.lower().startswith('likely false') or res.verdict.lower()=='false' %}
+                <span class="badge badge-danger">{{ res.verdict }}</span>
+              {% else %}
+                <span class="badge badge-neutral">{{ res.verdict }}</span>
+              {% endif %}
+            </h2>
+
+            <div class="d-flex align-items-center mb-3">
+              <strong class="me-3">Confidence:</strong>
+              <div class="progress flex-grow-1">
+                <div class="progress-bar" role="progressbar"
+                     style="--progress: {{ (res.confidence*100)|round(1) }}%"
+                     data-progress="{{ (res.confidence*100)|round(1) }}">
+                </div>
+              </div>
+              <span class="ms-3" data-countup="{{ (res.confidence*100)|round(1) }}">0%</span>
+            </div>
+
+            <h5 class="mt-4">Explanation</h5>
+            <p class="card-text">{{ res.explanation }}</p>
+          </div>
+        </div>
+
+        <div class="card mb-3 shadow-sm fade-up">
+          <div class="card-header">Top Snippets</div>
+          <ul class="list-group list-group-flush">
+            {% for s in snippets %}
+              <li class="list-group-item">
+                <p class="mb-1">{{ s.snippet }}</p>
+                <a href="{{ s.link or '#' }}" target="_blank" class="small">Source</a>
+              </li>
+            {% else %}
+              <li class="list-group-item text-white">No snippets found.</li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <div class="text-muted small">Retrieval rounds: {{ rounds }}</div>
+      </div>
+    </div>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

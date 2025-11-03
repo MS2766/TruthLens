@@ -3,34 +3,51 @@ import os
 import json
 import re
 import torch
+from dotenv import load_dotenv
+load_dotenv()
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from sentence_transformers import SentenceTransformer, util
-import openai
+import google.generativeai as genai
 
 # -----------------------------
 # Environment / Device
 # -----------------------------
 device = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"[reasoning.py] Device set to {device}")
-
-OPENAI_KEY = os.getenv("OPENAI_API_KEY")
+GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 
 # -----------------------------
-# Models
+# Models (lazy-loaded)
 # -----------------------------
-# Local reasoning model
+# Local reasoning model name (kept here so it can be configured)
 reasoner_model = "google/flan-t5-large"
-tokenizer = AutoTokenizer.from_pretrained(reasoner_model)
-model = AutoModelForSeq2SeqLM.from_pretrained(reasoner_model).to(device)
+# Handles will be created on demand by _load_local_models()
+tokenizer = None
+model = None
+embedder = None
 
-# Embedding model for fallback confidence
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
+def _load_local_models(model_name: str = None):
+    """Lazy-load tokenizer, seq2seq model and embedder when needed.
+
+    Calling this during import is avoided so tests and light-weight runs
+    that rely on Gemini don't trigger heavy downloads.
+    """
+    global tokenizer, model, embedder
+    mname = model_name or reasoner_model
+    if tokenizer is None or model is None:
+        tokenizer = AutoTokenizer.from_pretrained(mname)
+        model = AutoModelForSeq2SeqLM.from_pretrained(mname).to(device)
+    if embedder is None:
+        embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
 
 # -----------------------------
 # Utility: Compute similarity confidence
 # -----------------------------
 def compute_confidence(claim, evidence):
+    # ensure embedder is available
+    global embedder
+    if embedder is None:
+        _load_local_models()
     claim_emb = embedder.encode(claim, convert_to_tensor=True)
     evidence_emb = embedder.encode(evidence, convert_to_tensor=True)
     confidence = float(util.cos_sim(claim_emb, evidence_emb).item())
@@ -41,47 +58,61 @@ def compute_confidence(claim, evidence):
 # Reasoning function
 # -----------------------------
 def reason_about_claim(claim, evidence_snippets):
-    """
-    Returns structured JSON:
-    {
-      "verdict": "Likely True / Likely False / Unverifiable",
-      "confidence": 0.xx,
-      "explanation": "..."
-    }
-    """
-    evidence = "\n".join(evidence_snippets[:3])  # top 3 snippets only
+    evidence = "\n".join(evidence_snippets[:3])
 
-    # Prefer OpenAI GPT if key exists
-    if OPENAI_KEY:
-        openai.api_key = OPENAI_KEY
-        system_prompt = (
-            "You are a fact-checking assistant. "
-            "Determine if the claim is TRUE, FALSE, or UNVERIFIABLE. "
-            "Provide JSON output with fields: verdict, confidence (0-1), explanation."
-        )
-        user_prompt = f"Claim: {claim}\nEvidence:\n{evidence}\nReturn only JSON."
+    if GEMINI_KEY:
         try:
-            resp = openai.ChatCompletion.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                max_tokens=200,
-                temperature=0
-            )
-            raw_output = resp["choices"][0]["message"]["content"]
-            parsed = json.loads(raw_output)
-            if "confidence" not in parsed:
-                parsed["confidence"] = compute_confidence(claim, evidence)
-            return parsed
-        except Exception as e:
-            print(f"[reasoning.py] OpenAI API failed: {e}")
-            raw_output = ""
+            genai.configure(api_key=GEMINI_KEY)
 
-    # -----------------------------
-    # Local Flan-T5 fallback
-    # -----------------------------
+            system_prompt = (
+                "You are a fact-checking assistant. "
+                "Determine if the claim is TRUE, FALSE, or UNVERIFIABLE. "
+                "Respond only in JSON with keys: verdict, confidence (0-1), explanation. "
+                "Example: {\"verdict\": \"Likely True\", \"confidence\": 0.87, \"explanation\": \"...\"}"
+            )
+            user_prompt = f"Claim: {claim}\nEvidence:\n{evidence}\nReturn only JSON."
+
+            model_gen = genai.GenerativeModel("gemini-2.0-flash")
+            prompt = f"{system_prompt}\n\n{user_prompt}"
+
+            response = model_gen.generate_content(
+                prompt,
+                generation_config={
+                    "temperature": 0.0,
+                    "candidate_count": 1,
+                }
+            )
+
+            raw_output = getattr(response, "text", "").strip() or str(response).strip()
+
+            try:
+                parsed = json.loads(raw_output)
+            except json.JSONDecodeError:
+                json_match = re.search(r'\{.*\}', raw_output, re.DOTALL)
+                if json_match:
+                    try:
+                        parsed = json.loads(json_match.group(0))
+                    except Exception:
+                        parsed = None
+                else:
+                    parsed = None
+
+            if not parsed or not isinstance(parsed, dict):
+                print(f"[reasoning.py] Non-JSON or empty response from Gemini:\n{raw_output}")
+                parsed = {
+                    "verdict": "Unverifiable",
+                    "confidence": compute_confidence(claim, evidence),
+                    "explanation": raw_output[:300] or "Gemini returned no valid output."
+                }
+
+            if "confidence" not in parsed or parsed["confidence"] == 0:
+                parsed["confidence"] = compute_confidence(claim, evidence)
+
+            return parsed
+
+        except Exception as e:
+            print(f"[reasoning.py] Gemini API failed: {e}")
+
     prompt = f"""
 You are a scientific fact-checking assistant.
 Determine if the claim is TRUE, FALSE, or UNVERIFIABLE given the evidence.
@@ -93,22 +124,20 @@ Evidence:
 
 Output JSON with fields "verdict", "confidence", "explanation".
 """
+    # ensure local tokenizer/model are loaded before using them
+    _load_local_models()
     inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048).to(device)
     outputs = model.generate(
         **inputs,
         max_new_tokens=256,
-        do_sample=True,   # enable some randomness
+        do_sample=True, 
         num_beams=2       # improves quality
     )
     raw_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-    # -----------------------------
-    # Parse output
-    # -----------------------------
     try:
         parsed = json.loads(raw_output)
     except:
-        # Regex fallback: extract TRUE / FALSE / UNVERIFIABLE
         match = re.search(r'\b(TRUE|FALSE|UNVERIFIABLE)\b', raw_output, re.IGNORECASE)
         verdict = match.group(1).title() if match else "Unverifiable"
         parsed = {
@@ -117,16 +146,12 @@ Output JSON with fields "verdict", "confidence", "explanation".
             "explanation": raw_output.strip()
         }
 
-    # Ensure confidence exists
     if "confidence" not in parsed or parsed["confidence"] == 0:
         parsed["confidence"] = compute_confidence(claim, evidence)
 
     return parsed
 
 
-# -----------------------------
-# Test
-# -----------------------------
 if __name__ == "__main__":
     claim = "Electric cars reduce carbon emissions compared to petrol cars"
     evidence = [

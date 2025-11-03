@@ -1,0 +1,123 @@
+:root {
+  --bg:#0f1724;
+  --card:#0b1220;
+  --muted:#cbccce;
+  --white:#ffffff;
+  --accent:#7c5cff;
+  --accent-2:#00d4ff;
+  --success:#34d399;
+  --danger:#ff6b6b;
+  --glass: rgba(255,255,255,0.04);
+}
+
+body {
+  background: linear-gradient(180deg, #071028 0%, #07192a 60%);
+  color: #ffffff;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}
+
+.container { max-width: 960px }
+
+.card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border: none;
+  border-radius: 12px;
+  transition: all 220ms ease;
+}
+
+.card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 12px 30px rgba(2,6,23,0.6);
+}
+
+.card-footer {
+  background: transparent;
+  border-top: none;
+}
+
+.card-title {
+  font-weight: 700;
+  color: var(--accent-2);
+}
+
+textarea.form-control,
+input.form-control {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.06);
+  color: inherit;
+}
+
+.btn-primary {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  border: none;
+}
+
+.btn-primary:active {
+  transform: translateY(1px);
+}
+
+/* Verdict badge colors */
+.badge-success { background: var(--success); color: #02201a; }
+.badge-danger { background: var(--danger); color: #2a0404; }
+.badge-neutral { background: #2b3946; color: #ffffff; }
+
+/* Progress bar styles */
+.progress {
+  background: rgba(255,255,255,0.04);
+  border-radius: 999px;
+  overflow: hidden;
+  height: 10px;
+}
+
+.progress-bar {
+  width: 0%;
+  transition: width 0.9s cubic-bezier(.2,.9,.3,1);
+  transform: translateX(-100%);
+}
+
+.progress-bar.animate {
+  animation: slideIn 1s ease-out forwards;
+}
+
+@keyframes slideIn {
+  0% {
+    width: 0;
+    transform: translateX(-100%);
+  }
+  100% {
+    width: var(--progress);
+    transform: translateX(0);
+  }
+}
+
+/* Snippet list */
+.list-group-item {
+  background: transparent;
+  border-color: rgba(255,255,255,0.03);
+}
+
+.list-group-item a {
+  color: var(--accent-2);
+}
+
+/* Fade/slide-in animations */
+.fade-up {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: all 420ms ease;
+}
+.loaded .fade-up {
+  opacity: 1;
+  transform: none;
+}
+
+/* Responsive tweaks */
+@media (max-width: 576px) {
+  .container {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}

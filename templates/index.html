@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>TruthLens</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/style.css" rel="stylesheet">
+  </head>
+  <body>
+    <div class="container py-5 fade-up">
+      <div class="row justify-content-center">
+        <div class="col-md-8">
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <h1 class="card-title mb-3 text-center">TruthLens</h1>
+              <p class="text-white text-center mb-4">
+                <em>Explainable claim verifier — enter a claim and we’ll fetch evidence, analyze it, and reason about its truthfulness.</em>
+              </p>
+              <form action="/verify" method="post" class="fade-up">
+                <div class="mb-3">
+                  <label for="claim" class="text-white fw-semibold">Claim</label>
+                  <textarea id="claim" name="claim" class="form-control" rows="5" placeholder="e.g., Electric cars emit fewer greenhouse gases than petrol cars."></textarea>
+                </div>
+
+                <div class="row align-items-center mb-3">
+                  <div class="col-auto">
+                    <label for="rounds" class="text-white fw-semibold">Retrieval rounds</label>
+                  </div>
+                  <div class="col-auto">
+                    <input id="rounds" name="rounds" type="number" class="form-control" value="2" min="1" max="4">
+                  </div>
+                </div>
+
+                <div class="d-grid mt-4">
+                  <button type="submit" class="btn btn-primary btn-lg">
+                    🔍 Verify Claim
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div class="text-white text-center small">
+              Powered by <strong>Gemini</strong>, <strong>FLAN</strong>, and <strong>SERP</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
